@@ -1,0 +1,99 @@
+---
+title: "Kidney Disease ML Analytics"
+author: "Janis Corona"
+date: "12/10/2019"
+output: word_document
+---
+
+## Kidney Disease Analysis from gene expression profiles of 12 healthy and 4 renal disease samples for day 1, 3, 6, and 9 days in culture
+
+
+#### https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE141257
+ 
+```{r}
+kidneyDisease <- read.csv('Samples16-downloaded-kidney-disease.csv',
+                          sep=',', header=TRUE,
+                          na.strings=c('',' ','NA'))
+head(kidneyDisease)
+
+```
+
+```{r}
+
+tail(kidneyDisease)
+
+```
+
+
+
+```{r}
+SampleType <- read.csv('diseaseSampleType.csv', sep=',', header=TRUE,
+                       na.strings=c('',' ', 'NA'))
+```
+
+
+```{r}
+SampleType
+```
+The sample_IDs with AK124p1 in the name are the four renal disease samples
+
+```{r}
+colnames(kidneyDisease)
+```
+
+
+```{r}
+healthy <- kidneyDisease[,-c(2:5)]
+colnames(healthy)[1] <- 'Gene'
+renalDisease <- kidneyDisease[,c(1,2:5)]
+colnames(renalDisease) <- c('Gene','renal_0','renal_3','renal_6','renal_9')
+
+```
+
+
+```{r}
+colnames(healthy)
+dim(healthy)
+
+```
+
+
+```{r}
+colnames(renalDisease)
+dim(renalDisease)
+```
+
+
+```{r}
+str(healthy)
+```
+
+
+```{r}
+str(renalDisease)
+```
+
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+library(dplyr)
+```
+
+
+```{r}
+renalMeans <- renalDisease %>% group_by(Gene) %>% 
+              summarise_at(vars("renal_0":"renal_9"),
+              mean, na.rm=TRUE)
+```
+
+
+```{r}
+healthyMeans <- healthy %>% group_by(Gene) %>%
+                summarise_at(vars("X5_AK125p1_Adh.count":"AK86p2.SPH10d"),
+                             mean, na.rm=TRUE)
+```
+
+
+```{r}
+
+```
+

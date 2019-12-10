@@ -1,0 +1,17 @@
+sample,sample_ID,Condition,testCondition
+GSM4200015,AK82p2Adh,healthy,adherent
+GSM4200016,AK82p3SPH3d,healthy,3daySpheres
+GSM4200017,AK82p3SPH6d,healthy,6daySpheres
+GSM4200018,AK82p3SPH10d,healthy,9daySpheres
+GSM4200019,AK86p1Adh,healthy,adherent
+GSM4200020,AK86p2-SPH3d,healthy,3daySpheres
+GSM4200021,AK86p2-SPH6d,healthy,6daySpheres
+GSM4200022,AK86p2-SPH10d,healthy,9daySpheres
+GSM4200023,1_AK124p1_Adh.count,renal disease,adherent
+GSM4200024,2_AK124p1_SPH3d.count,renal disease,3daySpheres
+GSM4200025,3_AK124p1_SPH6d.count,renal disease,6daySpheres
+GSM4200026,4_AK124p1_SPH9d.count,renal disease,9daySpheres
+GSM4200027,5_AK125p1_Adh.count,healthy,adherent
+GSM4200028,6_AK125p1_SPH3d.count,healthy,3daySpheres
+GSM4200029,7_AK125p1_SPH6d.count,healthy,6daySpheres
+GSM4200030,8_AK125p1_SPH9d.count,healthy,9daySpheres
