@@ -1,0 +1,206 @@
+---
+title: "Kidney Disease PubMed"
+author: "Janis Corona"
+date: "12/11/2019"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+## This script takes articles from the abstracts on Kidney Disease articles from NCBI's PubMed, PLOS, and the summary of the NCBI GEO sample pages
+
+
+This creates a directory to stem the abstracts and preprocess from the csv file
+into a corpus of 20 files in a folder called KidneyDisease.
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+Auto <- read.csv('NIH_PLOS_articles_kidney_disease.csv', sep=',',
+                 header=FALSE, na.strings=c('',' '))
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+colnames(Auto) <- c('abstract','source')
+auto <- Auto[complete.cases(Auto$abstract),]
+
+
+dir.create('./KidneyDisease')
+
+ea <- as.character(auto$abstract)
+setwd('./KidneyDisease')
+
+for (j in 1:length(ea)){
+  write(ea[j], paste(paste('EA',j, sep='.'), '.txt', sep=''))
+}
+setwd('../')
+
+
+```
+
+This code preprocesses and stems the corpus
+```{r, error=FALSE, warning=FALSE, message=FALSE}
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(ggplot2)
+
+KidneyDisease <- Corpus(DirSource("KidneyDisease"))
+
+
+KidneyDisease
+
+#KidneyDisease <- tm_map(KidneyDisease, removePunctuation)
+#KidneyDisease <- tm_map(KidneyDisease, removeNumbers)
+KidneyDisease <- tm_map(KidneyDisease, tolower)
+KidneyDisease <- tm_map(KidneyDisease, removeWords, stopwords("english"))
+KidneyDisease <- tm_map(KidneyDisease, stripWhitespace)
+KidneyDisease <- tm_map(KidneyDisease, stemDocument)
+
+dtmKidneyDisease <- DocumentTermMatrix(KidneyDisease)
+
+freq <- colSums(as.matrix(dtmKidneyDisease))
+
+```
+
+This code orders words stemmed by frequency and finds input correlations
+```{r}
+FREQ <- data.frame(freq)
+ord <- order(freq, decreasing=TRUE)
+
+freq[head(ord, 25)]
+
+
+```
+
+
+```{r}
+findAssocs(dtmKidneyDisease, "renal", corlimit=0.5)
+
+```
+
+
+```{r}
+findAssocs(dtmKidneyDisease, "pain", corlimit=0.69)
+```
+
+
+```{r}
+wf <- data.frame(word=names(freq), freq=freq)
+p <- ggplot(subset(wf, freq>40), aes(word, freq))
+p <- p + geom_bar(stat= 'identity') 
+p <- p + theme(axis.text.x=element_text(angle=90, hjust=1)) 
+p
+
+```
+
+
+```{r}
+wordcloud(names(freq), freq, min.freq=45,colors=brewer.pal(3,'Dark2'))
+
+```
+
+
+```{r}
+wordcloud(names(freq), freq, max.words=30,colors=brewer.pal(6,'Dark2'))
+
+```
+
+### The above stemmed the corpus, this will lemmatize the original csv file
+and add the field to the table and write out to csv, followed by plot the 
+word count frequencies that were lemmatized and the word clouds
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+library(textstem)
+
+lemma <- lemmatize_strings(auto$abstract, dictionary=lexicon::hash_lemmas)
+
+Lemma <- as.data.frame(lemma)
+Lemma <- cbind(Lemma, auto)
+
+colnames(Lemma) <- c('lemmatizedAbstract','abstract', 'source')
+
+write.csv(Lemma, 'LemmatizedKidneyDisease.csv', row.names=FALSE)
+
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+dir.create('./KidneyDisease-Lemma')
+
+ea <- as.character(Lemma$lemmatizedAbstract)
+setwd('./KidneyDisease-Lemma')
+
+for (j in 1:length(ea)){
+  write(ea[j], paste(paste('EAL',j, sep='.'), '.txt', sep=''))
+}
+setwd('../')
+
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(ggplot2)
+
+```
+
+
+
+```{r}
+KidneyDisease <- Corpus(DirSource("KidneyDisease-Lemma"))
+
+KidneyDisease
+
+#KidneyDisease <- tm_map(KidneyDisease, removePunctuation)
+#KidneyDisease <- tm_map(KidneyDisease, removeNumbers)
+KidneyDisease <- tm_map(KidneyDisease, tolower)
+KidneyDisease <- tm_map(KidneyDisease, removeWords, stopwords("english"))
+KidneyDisease <- tm_map(KidneyDisease, stripWhitespace)
+
+dtmKidneyDisease <- DocumentTermMatrix(KidneyDisease)
+dtmKidneyDisease
+
+```
+
+```{r}
+freq <- colSums(as.matrix(dtmKidneyDisease))
+
+FREQ <- data.frame(freq)
+ord <- order(freq, decreasing=TRUE)
+
+freq[head(ord, 25)]
+
+```
+
+
+```{r}
+pain <- as.data.frame(findAssocs(dtmKidneyDisease, "pain", corlimit=0.99))
+
+kidney <- as.data.frame(findAssocs(dtmKidneyDisease, "kidney", corlimit=0.65))
+
+
+treatment <- as.data.frame(findAssocs(dtmKidneyDisease, "treatment", corlimit=0.81))
+
+pain
+kidney
+treatment
+```
+
+```{r, width=500, height=500}
+wf <- data.frame(word=names(freq), freq=freq)
+p <- ggplot(subset(wf, freq>40), aes(word, freq))
+p <- p + geom_bar(stat= 'identity') 
+p <- p + theme(axis.text.x=element_text(angle=90, hjust=1)) 
+p
+
+```
+
+```{r}
+wordcloud(names(freq), freq, min.freq=60,colors=brewer.pal(3,'Dark2'))
+
+```
+
+```{r}
+wordcloud(names(freq), freq, max.words=30,colors=brewer.pal(6,'Dark2'))
+
+```
+

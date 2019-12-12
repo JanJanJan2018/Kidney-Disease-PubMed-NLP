@@ -2,7 +2,9 @@
 title: "Kidney Disease ML Analytics"
 author: "Janis Corona"
 date: "12/10/2019"
-output: word_document
+output:
+  word_document: default
+  pdf_document: default
 ---
 
 ## Kidney Disease Analysis from gene expression profiles of 12 healthy and 4 renal disease samples for day 1, 3, 6, and 9 days in culture
@@ -79,21 +81,382 @@ library(dplyr)
 ```
 
 
+## Assign no duplicate instances of genes
 ```{r}
-renalMeans <- renalDisease %>% group_by(Gene) %>% 
-              summarise_at(vars("renal_0":"renal_9"),
-              mean, na.rm=TRUE)
+Renal_df <- renalDisease[!duplicated(renalDisease$Gene),]
+```
+
+## Check that all the genes have 1 count each, they do
+```{r}
+renalCounts <- Renal_df %>% group_by(Gene) %>% 
+              summarise(counts = n())
+dim(renalCounts)
+unique(renalCounts$counts)
+
+```
+
+```{r}
+healthyCounts <- healthy %>% group_by(Gene) %>%
+                    summarise(counts = n())
+dim(healthyCounts)
+unique(renalCounts$counts)
+```
+
+#### Attach a field to the renal and healthy data frames for gene means
+```{r}
+row.names(renalDisease) <- renalDisease$Gene
+renalDisease <- renalDisease[2:5]
+renalDisease$Gene_Means <- rowMeans(renalDisease)
 ```
 
 
 ```{r}
-healthyMeans <- healthy %>% group_by(Gene) %>%
-                summarise_at(vars("X5_AK125p1_Adh.count":"AK86p2.SPH10d"),
-                             mean, na.rm=TRUE)
+row.names(healthy) <- healthy$Gene
+healthy <- healthy[2:13]
+healthy$Gene_Means <- round(rowMeans(healthy),3)
 ```
 
 
 ```{r}
+colnames(healthy)[13] <- "healthy_Means"
+colnames(renalDisease)[5] <- "renal_Means"
+```
+
+
+```{r}
+Combined <- cbind(renalDisease, healthy)
+Combined <- Combined[,c(5,18,1:4,6:17)]
+```
+
+#### Create the fold change field to compare the change in Renal diseased gene expression to healthy gene expression
+```{r}
+Fold_Change <- Combined %>% mutate(Fold_Change = renal_Means/healthy_Means)
+row.names(Fold_Change) <- row.names(Combined)
+Fold_Change <- Fold_Change[,c(19,1:18)]
+
+```
+
+#### Remove NaN's or Not a number and Inf when dividing by zero or a very small value
+```{r}
+Fold_Change$Fold_Change <- gsub('NaN',0,Fold_Change$Fold_Change)
+Fold_Change$Fold_Change <- gsub('Inf', 0, Fold_Change$Fold_Change)
+Fold_Change$Fold_Change <- round(as.numeric(Fold_Change$Fold_Change),3)
+```
+
+```{r}
+Top20_FC <- Fold_Change[order(Fold_Change$Fold_Change, decreasing=TRUE)[0:20],]
+
+```
+
+
+#### Create the Differential Expression in renal Disease compared to healthy genes
+```{r}
+Differential <- Fold_Change %>% mutate(Differential_Expression = healthy_Means-renal_Means)
+Differential <- Differential[,c(20,1:19)]
+Differential$Differential_Expression <-       round(as.numeric(Differential$Differential_Expression, 3))
+row.names(Differential) <- row.names(Fold_Change)
+```
+
+#### Since this is healthy - diseased, positive values mean the diseased gene expression means are lower than the healthy gene expression levels
+```{r}
+downgraded <- Differential[order(Differential$Differential_Expression, 
+                                decreasing=TRUE),]
+```
+
+#### Top 20 downgraded genes
+```{r}
+Top20_down <- downgraded[0:20,]
+```
+
+#### Top 20 upgraded genes, diseased gene expression means were higher than the healthy gene expression means, hence negative values for differential expression
+```{r}
+upgraded <- Differential[order(Differential$Differential_Expression,
+                                 decreasing=FALSE),]
+```
+
+```{r}
+Top20_up <- upgraded[0:20,]
+```
+
+
+```{r}
+Top20_up
+```
+
+```{r}
+Top20_down
+```
+
+
+
+
+#### Write these two top 20 genes being expressed more in diseased as Top 20 up-expressed, and the top 20 genes being expressed less as the Top 20 down-expressed genes as csv files. Also, write the top 20 fold change genes to its own csv file
+
+```{r}
+write.csv(Top20_down, 'Down-regulated-20.csv', row.names=TRUE)
+write.csv(Top20_up, 'Up-regulated-20.csv', row.names=TRUE)
+write.csv(Top20_FC, 'Fold-Change-20.csv', row.names=TRUE)
+```
+
+
+
+### What are the top 20 genes up-regulated in renal disease compared to healthy?
+```{r}
+Up <- as.data.frame(row.names(Top20_up))
+colnames(Up) <- 'Gene'
+Up
+```
+
+
+
+### What are the top 20 genes down-regulated in renal disease compared to healthy?
+```{r}
+Down <- as.data.frame(row.names(Top20_down))
+colnames(Down) <- 'Gene'
+Down
+```
+
+
+
+### What are the top 20 genes that have the most fold change in the ratio of healthy to renal disease gene expression? Even the inverse fold change of disease to healthy would 
+```{r}
+FC <- as.data.frame(row.names(Top20_FC))
+colnames(FC) <- 'Gene'
+FC
+```
+
+```{r}
+Up$RenalType <- rep('Up',20)
+Down$RenalType <- rep('Down',20)
+FC$RenalType <- rep('foldChange', 20)
+```
+
+```{r}
+Up <- Up[order(Up$Gene,decreasing=FALSE),]
+FC <- FC[order(FC$Gene,decreasing=FALSE),]
+common <- merge(Up,FC, by.x='Gene', by.y='Gene')
+```
+
+#### Common genes to most fold change and up regulated gene expressions are:
+```{r}
+common
+
+```
+
+#### We should go to NCBI Gene get the gene information on these up regulated genes in Renal disease.
+```{r}
+chr <- as.data.frame(c('21','12','10','X'))
+direction <- as.data.frame(c('+','+','+','-'))
+start <- as.data.frame(c('45972970','29389294','114174442','73820651'))
+end <- as.data.frame(c('45974953','29487324','114232669','73852753'))
+TissueMostExpressed <- as.data.frame(c('testis','testis','testis','thyroid'))
+fullName <- as.data.frame(c('uncharacterized LOC101928796','OVCH1 antisense RNA 1','tudor domain containing 1','X inactive specific transcript'))
+GeneFunction <- as.data.frame(c('ncRNA.','ncRNA.','protein coding. This gene encodes a protein containing a tudor domain that is thought to function in the suppression of transposable elements during spermatogenesis. The related protein in mouse forms a complex with piRNAs and Piwi proteins to promote methylation and silencing of target sequences. This gene was observed to be upregulated by ETS transcription factor ERG in prostate tumors.','ncRNA. X inactivation is an early developmental process in mammalian females that transcriptionally silences one of the pair of X chromosomes, thus providing dosage equivalence between males and females. The process is regulated by several factors, including a region of chromosome X called the X inactivation center (XIC). The XIC comprises several non-coding and protein-coding genes, and this gene was the first non-coding gene identified within the XIC. This gene is expressed exclusively from the XIC of the inactive X chromosome, and is essential for the initiation and spread of X-inactivation. The transcript is a spliced RNA. Alternatively spliced transcript variants have been identified, but their full length sequences have not been determined. Mutations in the XIST promoter cause familial skewed X inactivation.'))
+
+```
+
+```{r}
+info <- cbind(fullName, TissueMostExpressed,GeneFunction, chr,direction, start, end)
+colnames(info) <- c('geneName','TissueMostExpressed','geneFunction','chromosome','strandDirection','startBP','endBP')
+
+information <- cbind(common, info)
+information
+```
+
+
+## This script takes articles from the abstracts on Kidney Disease articles from NCBI's PubMed, PLOS, and the summary of the NCBI GEO sample pages
+
+
+This creates a directory to stem the abstracts and preprocess from the csv file
+into a corpus of 20 files in a folder called KidneyDisease.
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+Auto <- read.csv('NIH_PLOS_articles_kidney_disease.csv', sep=',',
+                 header=FALSE, na.strings=c('',' '))
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+colnames(Auto) <- c('abstract','source')
+auto <- Auto[complete.cases(Auto$abstract),]
+
+
+dir.create('./KidneyDisease')
+
+ea <- as.character(auto$abstract)
+setwd('./KidneyDisease')
+
+for (j in 1:length(ea)){
+  write(ea[j], paste(paste('EA',j, sep='.'), '.txt', sep=''))
+}
+setwd('../')
+
+
+```
+
+This code preprocesses and stems the corpus
+```{r, error=FALSE, warning=FALSE, message=FALSE}
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(ggplot2)
+
+KidneyDisease <- Corpus(DirSource("KidneyDisease"))
+
+
+KidneyDisease
+
+#KidneyDisease <- tm_map(KidneyDisease, removePunctuation)
+#KidneyDisease <- tm_map(KidneyDisease, removeNumbers)
+KidneyDisease <- tm_map(KidneyDisease, tolower)
+KidneyDisease <- tm_map(KidneyDisease, removeWords, stopwords("english"))
+KidneyDisease <- tm_map(KidneyDisease, stripWhitespace)
+KidneyDisease <- tm_map(KidneyDisease, stemDocument)
+
+dtmKidneyDisease <- DocumentTermMatrix(KidneyDisease)
+
+freq <- colSums(as.matrix(dtmKidneyDisease))
+
+```
+
+This code orders words stemmed by frequency and finds input correlations
+```{r}
+FREQ <- data.frame(freq)
+ord <- order(freq, decreasing=TRUE)
+
+freq[head(ord, 25)]
+
+
+```
+
+
+```{r}
+findAssocs(dtmKidneyDisease, "renal", corlimit=0.5)
+
+```
+
+
+```{r}
+findAssocs(dtmKidneyDisease, "pain", corlimit=0.69)
+```
+
+
+```{r}
+wf <- data.frame(word=names(freq), freq=freq)
+p <- ggplot(subset(wf, freq>40), aes(word, freq))
+p <- p + geom_bar(stat= 'identity') 
+p <- p + theme(axis.text.x=element_text(angle=90, hjust=1)) 
+p
+
+```
+
+
+```{r}
+wordcloud(names(freq), freq, min.freq=45,colors=brewer.pal(3,'Dark2'))
+
+```
+
+
+```{r}
+wordcloud(names(freq), freq, max.words=30,colors=brewer.pal(6,'Dark2'))
+
+```
+
+### The above stemmed the corpus, this will lemmatize the original csv file
+and add the field to the table and write out to csv, followed by plot the 
+word count frequencies that were lemmatized and the word clouds
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+library(textstem)
+
+lemma <- lemmatize_strings(auto$abstract, dictionary=lexicon::hash_lemmas)
+
+Lemma <- as.data.frame(lemma)
+Lemma <- cbind(Lemma, auto)
+
+colnames(Lemma) <- c('lemmatizedAbstract','abstract', 'source')
+
+write.csv(Lemma, 'LemmatizedKidneyDisease.csv', row.names=FALSE)
+
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+dir.create('./KidneyDisease-Lemma')
+
+ea <- as.character(Lemma$lemmatizedAbstract)
+setwd('./KidneyDisease-Lemma')
+
+for (j in 1:length(ea)){
+  write(ea[j], paste(paste('EAL',j, sep='.'), '.txt', sep=''))
+}
+setwd('../')
+
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(ggplot2)
+
+```
+
+
+
+```{r}
+KidneyDisease <- Corpus(DirSource("KidneyDisease-Lemma"))
+
+KidneyDisease
+
+#KidneyDisease <- tm_map(KidneyDisease, removePunctuation)
+#KidneyDisease <- tm_map(KidneyDisease, removeNumbers)
+KidneyDisease <- tm_map(KidneyDisease, tolower)
+KidneyDisease <- tm_map(KidneyDisease, removeWords, stopwords("english"))
+KidneyDisease <- tm_map(KidneyDisease, stripWhitespace)
+
+dtmKidneyDisease <- DocumentTermMatrix(KidneyDisease)
+dtmKidneyDisease
+
+```
+
+```{r}
+freq <- colSums(as.matrix(dtmKidneyDisease))
+
+FREQ <- data.frame(freq)
+ord <- order(freq, decreasing=TRUE)
+
+freq[head(ord, 25)]
+
+```
+
+
+```{r}
+pain <- as.data.frame(findAssocs(dtmKidneyDisease, "pain", corlimit=0.99))
+
+kidney <- as.data.frame(findAssocs(dtmKidneyDisease, "kidney", corlimit=0.65))
+
+
+treatment <- as.data.frame(findAssocs(dtmKidneyDisease, "treatment", corlimit=0.81))
+
+pain
+kidney
+treatment
+```
+
+```{r, width=500, height=500}
+wf <- data.frame(word=names(freq), freq=freq)
+p <- ggplot(subset(wf, freq>40), aes(word, freq))
+p <- p + geom_bar(stat= 'identity') 
+p <- p + theme(axis.text.x=element_text(angle=90, hjust=1)) 
+p
+
+```
+
+```{r}
+wordcloud(names(freq), freq, min.freq=60,colors=brewer.pal(3,'Dark2'))
+
+```
+
+```{r}
+wordcloud(names(freq), freq, max.words=30,colors=brewer.pal(6,'Dark2'))
 
 ```
 
