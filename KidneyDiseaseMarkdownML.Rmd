@@ -3,8 +3,10 @@ title: "Kidney Disease ML Analytics"
 author: "Janis Corona"
 date: "12/10/2019"
 output:
-  word_document: default
   pdf_document: default
+  html_document:
+    df_print: paged
+  word_document: default
 ---
 
 ## Kidney Disease Analysis from gene expression profiles of 12 healthy and 4 renal disease samples for day 1, 3, 6, and 9 days in culture
@@ -263,6 +265,272 @@ information <- cbind(common, info)
 information
 ```
 
+Read in a table of the gene summaries for these genes with some summaries missing for certain genes in the up/down/fold change top 20 genes
+```{r}
+summaries <- read.csv('GeneDescriptionsNCBIgene.csv', sep=',',header=TRUE,
+                      na.strings=c('',' ','NA'))
+summaries <- summaries[,c(1:3)]
+```
+
+
+The gene summaries by complete cases
+```{r}
+summ <- summaries[complete.cases(summaries$geneFunction),]
+
+```
+
+
+Merge the up, down, and fold change genes with their gene summaries
+```{r}
+Top20_up$gene <- row.names(Top20_up)
+Top20_down$gene <- row.names(Top20_down)
+Top20_FC$gene <- row.names(Top20_FC)
+
+up_summ <- merge(summ, Top20_up, by.x='gene',by.y='gene')
+down_summ <- merge(summ, Top20_down, by.x='gene',by.y='gene')
+fc_summ <- merge(summ, Top20_FC, by.x='gene',by.y='gene')
+
+```
+
+
+Use lemmatization on the available top 20 down regulated gene summaries
+```{r, error=FALSE, warning=FALSE, message=FALSE}
+library(tm)
+library(SnowballC)
+library(wordcloud)
+library(ggplot2)
+library(textstem)
+
+
+```
+
+
+
+```{r}
+lemma <- lemmatize_strings(up_summ$geneFunction, dictionary=lexicon::hash_lemmas)
+
+Lemma <- as.data.frame(lemma)
+Lemma <- cbind(Lemma, up_summ)
+
+colnames(Lemma)[1] <- 'lemmatized_summary'
+
+write.csv(Lemma, 'Lemmatized_upreg20.csv', row.names=FALSE)
+
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+dir.create('./upreg20-Lemma')
+
+ea <- as.character(Lemma$lemmatized_summary)
+setwd('./upreg20-Lemma')
+
+for (j in 1:length(ea)){
+  write(ea[j], paste(paste('up',j, sep='.'), '.txt', sep=''))
+}
+setwd('../')
+
+```
+
+
+```{r}
+KidneyDisease <- Corpus(DirSource("upreg20-Lemma"))
+
+KidneyDisease
+
+KidneyDisease <- tm_map(KidneyDisease, removePunctuation)
+KidneyDisease <- tm_map(KidneyDisease, removeNumbers)
+KidneyDisease <- tm_map(KidneyDisease, tolower)
+KidneyDisease <- tm_map(KidneyDisease, removeWords, stopwords("english"))
+KidneyDisease <- tm_map(KidneyDisease, stripWhitespace)
+
+dtmKidneyDisease <- DocumentTermMatrix(KidneyDisease)
+dtmKidneyDisease
+
+```
+
+```{r}
+freq <- colSums(as.matrix(dtmKidneyDisease))
+
+FREQ <- data.frame(freq)
+ord <- order(freq, decreasing=TRUE)
+
+freq[head(ord, 25)]
+
+```
+
+
+### Up regulated genes
+```{r, width=500, height=500}
+wf <- data.frame(word=names(freq), freq=freq)
+p <- ggplot(subset(wf, freq>5), aes(word, freq))
+p <- p + geom_bar(stat= 'identity') 
+p <- p + theme(axis.text.x=element_text(angle=90, hjust=1)) 
+p
+
+```
+
+```{r}
+wordcloud(names(freq), freq, min.freq=4,colors=brewer.pal(3,'Dark2'))
+
+```
+
+```{r}
+wordcloud(names(freq), freq, max.words=30,colors=brewer.pal(6,'Dark2'))
+
+```
+
+
+### Now for the down regulated available summaries for the top 20 down regulated genes
+
+```{r}
+lemma <- lemmatize_strings(down_summ$geneFunction, dictionary=lexicon::hash_lemmas)
+
+Lemma <- as.data.frame(lemma)
+Lemma <- cbind(Lemma, down_summ)
+
+colnames(Lemma)[1] <- 'lemmatized_summary'
+
+write.csv(Lemma, 'Lemmatized_downreg20.csv', row.names=FALSE)
+
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+dir.create('./downreg20-Lemma')
+
+ea <- as.character(Lemma$lemmatized_summary)
+setwd('./downreg20-Lemma')
+
+for (j in 1:length(ea)){
+  write(ea[j], paste(paste('down',j, sep='.'), '.txt', sep=''))
+}
+setwd('../')
+
+```
+
+
+```{r}
+KidneyDisease <- Corpus(DirSource("downreg20-Lemma"))
+
+KidneyDisease
+
+KidneyDisease <- tm_map(KidneyDisease, removePunctuation)
+KidneyDisease <- tm_map(KidneyDisease, removeNumbers)
+KidneyDisease <- tm_map(KidneyDisease, tolower)
+KidneyDisease <- tm_map(KidneyDisease, removeWords, stopwords("english"))
+KidneyDisease <- tm_map(KidneyDisease, stripWhitespace)
+
+dtmKidneyDisease <- DocumentTermMatrix(KidneyDisease)
+dtmKidneyDisease
+
+```
+
+```{r}
+freq <- colSums(as.matrix(dtmKidneyDisease))
+
+FREQ <- data.frame(freq)
+ord <- order(freq, decreasing=TRUE)
+
+freq[head(ord, 25)]
+
+```
+
+
+### Down regulated
+```{r, width=500, height=500}
+wf <- data.frame(word=names(freq), freq=freq)
+p <- ggplot(subset(wf, freq>8), aes(word, freq))
+p <- p + geom_bar(stat= 'identity') 
+p <- p + theme(axis.text.x=element_text(angle=90, hjust=1)) 
+p
+
+```
+
+```{r}
+wordcloud(names(freq), freq, min.freq=4,colors=brewer.pal(3,'Dark2'))
+
+```
+
+```{r}
+wordcloud(names(freq), freq, max.words=30,colors=brewer.pal(6,'Dark2'))
+
+```
+
+
+
+### Now for the fold change top 20 available gene summaries
+```{r}
+lemma <- lemmatize_strings(fc_summ$geneFunction, dictionary=lexicon::hash_lemmas)
+
+Lemma <- as.data.frame(lemma)
+Lemma <- cbind(Lemma, fc_summ)
+
+colnames(Lemma)[1] <- 'lemmatized_summary'
+
+write.csv(Lemma, 'Lemmatized_fcreg20.csv', row.names=FALSE)
+
+```
+
+```{r, error=FALSE, message=FALSE, warning=FALSE}
+dir.create('./fcreg20-Lemma')
+
+ea <- as.character(Lemma$lemmatized_summary)
+setwd('./fcreg20-Lemma')
+
+for (j in 1:length(ea)){
+  write(ea[j], paste(paste('fc',j, sep='.'), '.txt', sep=''))
+}
+setwd('../')
+
+```
+
+
+```{r}
+KidneyDisease <- Corpus(DirSource("fcreg20-Lemma"))
+
+KidneyDisease
+
+KidneyDisease <- tm_map(KidneyDisease, removePunctuation)
+KidneyDisease <- tm_map(KidneyDisease, removeNumbers)
+KidneyDisease <- tm_map(KidneyDisease, tolower)
+KidneyDisease <- tm_map(KidneyDisease, removeWords, stopwords("english"))
+KidneyDisease <- tm_map(KidneyDisease, stripWhitespace)
+
+dtmKidneyDisease <- DocumentTermMatrix(KidneyDisease)
+dtmKidneyDisease
+
+```
+
+```{r}
+freq <- colSums(as.matrix(dtmKidneyDisease))
+
+FREQ <- data.frame(freq)
+ord <- order(freq, decreasing=TRUE)
+
+freq[head(ord, 25)]
+
+```
+
+
+### Fold Change genes
+```{r, width=500, height=500}
+wf <- data.frame(word=names(freq), freq=freq)
+p <- ggplot(subset(wf, freq>5), aes(word, freq))
+p <- p + geom_bar(stat= 'identity') 
+p <- p + theme(axis.text.x=element_text(angle=90, hjust=1)) 
+p
+
+```
+
+```{r}
+wordcloud(names(freq), freq, min.freq=4,colors=brewer.pal(3,'Dark2'))
+
+```
+
+```{r}
+wordcloud(names(freq), freq, max.words=40,colors=brewer.pal(6,'Dark2'))
+
+```
+
 
 ## This script takes articles from the abstracts on Kidney Disease articles from NCBI's PubMed, PLOS, and the summary of the NCBI GEO sample pages
 
@@ -294,10 +562,6 @@ setwd('../')
 
 This code preprocesses and stems the corpus
 ```{r, error=FALSE, warning=FALSE, message=FALSE}
-library(tm)
-library(SnowballC)
-library(wordcloud)
-library(ggplot2)
 
 KidneyDisease <- Corpus(DirSource("KidneyDisease"))
 
@@ -365,7 +629,7 @@ and add the field to the table and write out to csv, followed by plot the
 word count frequencies that were lemmatized and the word clouds
 
 ```{r, error=FALSE, message=FALSE, warning=FALSE}
-library(textstem)
+#library(textstem)
 
 lemma <- lemmatize_strings(auto$abstract, dictionary=lexicon::hash_lemmas)
 
@@ -390,15 +654,6 @@ for (j in 1:length(ea)){
 setwd('../')
 
 ```
-
-```{r, error=FALSE, message=FALSE, warning=FALSE}
-library(tm)
-library(SnowballC)
-library(wordcloud)
-library(ggplot2)
-
-```
-
 
 
 ```{r}
@@ -459,4 +714,120 @@ wordcloud(names(freq), freq, min.freq=60,colors=brewer.pal(3,'Dark2'))
 wordcloud(names(freq), freq, max.words=30,colors=brewer.pal(6,'Dark2'))
 
 ```
+
+### Now for some machine learning on predicting renal or kidney type from these samples of 12 healthy and 4 renal disease using the top 20 genes of up/down/fold change genes
+
+```{r}
+FC <- Top20_FC[,4:20]
+UP <- Top20_up[,5:20]
+DOWN <- Top20_down[,5:20]
+
+FC$gene <- row.names(FC)
+UP$gene <- row.names(UP)
+DOWN$gene <- row.names(DOWN)
+```
+
+```{r}
+t_tall <- rbind(FC,UP,DOWN)
+t_tall <- t_tall[!duplicated(t_tall$gene),]
+```
+
+
+#remove the statistical observations
+```{r}
+t_tall <- t(t_tall)
+row.names(t_tall)
+dim(t_tall)
+```
+
+```{r}
+t_tall <- t_tall[1:16,] #remove gene row
+```
+
+```{r}
+renal2 <- as.data.frame(rep('renal disease',4))
+healthy2 <- as.data.frame(rep('healthy',12))
+colnames(renal2) <- 'type'
+colnames(healthy2) <- 'type'
+
+type <- rbind(renal2, healthy2)
+
+ML_set <- cbind(type,t_tall)
+dim(ML_set)
+```
+```{r}
+ML_set2 <- ML_set[,2:57]
+
+for (i in 1:ncol(ML_set2)){
+        ML_set2[,i] <- as.numeric(as.character(ML_set2[,i]))
+}
+
+ML_set2$type <- ML_set$type
+ML_set <- ML_set2[,c(57,1:56)]
+```
+
+
+The data set that will be used for Machine Learning will predict if the sample is renal disease or healthy. The samples will have to be randomized into 80% train and 20% test
+```{r ,warning=FALSE,error=FALSE,message=FALSE}
+library(caret)
+library(randomForest)
+library(MASS)
+library(gbm)
+library(dplyr)
+```
+
+```{r cars}
+set.seed(189678345)
+```
+
+```{r}
+inTrain <- createDataPartition(y=ML_set$type, p=0.8, list=FALSE)
+
+trainingSet <- ML_set[inTrain,]
+testingSet <- ML_set[-inTrain,]
+
+```
+
+
+
+### KNN
+```{r, message=FALSE, error=FALSE, warning=FALSE}
+system.time(knnMod <- train(type  ~ .,
+                method='knn', preProcess=c('center','scale'),
+                tuneLength=10, trControl=trainControl(method='cv'), data=trainingSet))
+
+```
+
+```{r}
+plot(knnMod)
+```
+
+The predicted results with KNN
+```{r}
+predKNN <- predict(knnMod, testingSet)
+predKNN
+```
+
+The actual values in the testing set
+```{r}
+testingSet$type
+```
+
+### Random Forest
+```{r, message=FALSE, error=FALSE, warning=FALSE}
+system.time(rfMod <- train(type ~., method='rf', data=(trainingSet), 
+               trControl=trainControl(method='cv'), number=5))
+
+```
+
+```{r}
+plot(rfMod)
+```
+The predicted Random Forest results and the actual results
+```{r}
+predRF <- predict(rfMod, testingSet)
+predRF
+testingSet$type
+```
+
 
